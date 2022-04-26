@@ -38,6 +38,8 @@ import org.jboss.perf.context.UnrollContextImpl;
 import org.jboss.perf.handler.*;
 import org.openjdk.jmh.annotations.*;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -48,17 +50,34 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class MethodDispatchBenchmark {
 
+    static final Map<String, RestHandler[]> handlerChains;
+
+    static {
+        handlerChains = new HashMap<>();
+        handlerChains.put("small", new RestHandler[]{new RandomHandler()});
+        handlerChains.put("large", new RestHandler[]{new RandomHandler(), new ExceptionHandler(), new RoutingHandler(), new RandomHandler(), new InputHandler(), new ExceptionHandler(), new RoutingHandler(), new RandomHandler(), new InputHandler()});
+        handlerChains.put("sequential", new RestHandler[]{new BlockingHandler(), new ExceptionHandler(), new InputHandler(), new RandomHandler(), new RoutingHandler()});
+        handlerChains.put("random", new RestHandler[]{new InputHandler(), new RandomHandler(), new BlockingHandler(), new RoutingHandler(), new ExceptionHandler()});
+    }
+
     @State(Scope.Benchmark)
     public static class HandlerState {
-        public RestHandler[] smallHandlerChain = {new RandomHandler(), new ExceptionHandler(), new RoutingHandler()};
-        public RestHandler[] largeHandlerChain = {new RandomHandler()};
-        public RestHandler[] sequentialHandlerChain = {new RandomHandler()};
-        public RestHandler[] randomHandlerChain = {new RandomHandler()};
+        @Param({"small", "large", "sequential", "random"})
+        public String targetChain;
 
-        public LambdaContextImpl lambdaContext = new LambdaContextImpl(smallHandlerChain);
-        public UnrollContextImpl unrollContext = new UnrollContextImpl(smallHandlerChain);
-        public InterfaceContextImpl interfaceContext = new InterfaceContextImpl(smallHandlerChain);
-        public MethodHandleImpl methodHandleContext = new MethodHandleImpl(smallHandlerChain);
+        public LambdaContextImpl lambdaContext;
+        public UnrollContextImpl unrollContext;
+        public InterfaceContextImpl interfaceContext;
+        public MethodHandleImpl methodHandleContext;
+
+        @Setup(Level.Trial)
+        public void setUp() {
+            RestHandler[] handlerChain = handlerChains.get(targetChain);
+            lambdaContext = new LambdaContextImpl(handlerChain);
+            unrollContext = new UnrollContextImpl(handlerChain);
+            interfaceContext = new InterfaceContextImpl(handlerChain);
+            methodHandleContext = new MethodHandleImpl(handlerChain);
+        }
 
     }
 
